@@ -2,181 +2,113 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Axiom // Irrational Genesis</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Axiom // True Sequence 523</title>
     <style>
-        :root { --accent: #00ffb4; --bg: #000; }
-        body { margin: 0; background: var(--bg); overflow: hidden; font-family: -apple-system, "SF Pro Display", sans-serif; color: #fff; }
-        canvas { display: block; width: 100vw; height: 100vh; touch-action: none; }
-        
-        /* Cinematic UI Overlay */
-        #axiom-ui {
-            position: fixed;
-            inset: 0;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            pointer-events: none;
-            z-index: 10;
-        }
-        .header { text-align: center; }
-        h1 { 
-            font-size: 2.2rem; 
-            font-weight: 800; 
-            letter-spacing: -2px; 
-            margin: 0; 
-            text-transform: uppercase;
-            background: linear-gradient(to bottom, #fff, rgba(255,255,255,0.4));
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            filter: drop-shadow(0 0 20px rgba(0, 255, 180, 0.4));
-        }
-        .meta {
-            margin-top: 12px;
-            font-size: 0.65rem;
-            letter-spacing: 4px;
-            font-weight: 600;
-            color: rgba(255, 255, 255, 0.3);
-            text-transform: uppercase;
-        }
-        b { color: var(--accent); font-variant-numeric: tabular-nums; margin-left: 8px; }
+        body { margin: 0; background: #000; overflow: hidden; font-family: -apple-system, sans-serif; }
+        canvas { display: block; width: 100vw; height: 100vh; }
+        #ui { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; pointer-events: none; color: #fff; }
+        .stats { margin-top: 15px; font-size: 10px; letter-spacing: 3px; color: rgba(255,255,255,0.4); text-transform: uppercase; }
+        b { color: #0f9; margin-left: 5px; }
     </style>
 </head>
 <body>
-
-    <div id="axiom-ui">
-        <div class="header">
-            <h1>Genesis 523</h1>
-            <div class="meta">Manifold Index <b id="sequence-val">1</b></div>
-        </div>
+    <div id="ui">
+        <h1 style="font-size: 2rem; letter-spacing: -1px; margin: 0;">Irrational Genesis</h1>
+        <div class="stats">Manifold Index <b id="counter">1</b></div>
     </div>
-    
     <canvas id="stage"></canvas>
 
     <script type="module">
         const canvas = document.getElementById('stage');
-        const gl = canvas.getContext('webgl', { antialias: true, alpha: false, stencil: false });
-        const val = document.getElementById('sequence-val');
+        const gl = canvas.getContext('webgl', { antialias: true });
+        const counter = document.getElementById('counter');
 
         const VS = `
             attribute float id;
-            uniform mat4 uM;
-            uniform float uT;
-            uniform float uLimit;
+            uniform mat4 m;
+            uniform float t;
+            uniform float limit;
             varying float vR;
-            varying float vActive;
+            varying float vF;
 
             void main() {
                 float PHI = 1.6180339887;
                 float TAU = 6.2831853071;
                 float RHO = 14.134725;
 
-                if(id > uLimit) {
-                    gl_Position = vec4(0.0);
-                    return;
-                }
+                if(id > limit) { gl_Position = vec4(0.0); return; }
 
-                // Cumulative Fibonacci Physics
-                float r = sqrt(id) * 4.2;
+                float r = sqrt(id) * 4.5;
                 float theta = id * (TAU / (PHI * PHI));
-                
-                // Riemann Zero frequency modulation
-                float curl = sin(log(r + 1.0) * RHO) * 0.9;
-                float angle = theta + curl + (uT * 0.12);
+                float curl = sin(log(r + 1.0) * RHO) * 0.95;
+                float angle = theta + curl + (t * 0.1);
 
-                // Fractal displacement
-                float y = sin(uT * 0.8 + id * 0.15) * (1.2 * (1.0 - (r/100.0)));
-                
-                vec3 pos = vec3(cos(angle) * r, y, sin(angle) * r);
-                vR = r / 100.0;
-                vActive = smoothstep(uLimit - 30.0, uLimit, id);
+                vR = r / 110.0;
+                vF = smoothstep(limit - 10.0, limit, id);
 
-                gl_Position = uM * vec4(pos, 1.0);
-                gl_PointSize = (26.0 + sin(uT + id) * 8.0) * (45.0 / gl_Position.w);
+                vec3 pos = vec3(cos(angle) * r, sin(t + id * 0.1) * 1.5 * vF, sin(angle) * r);
+                gl_Position = m * vec4(pos, 1.0);
+                gl_PointSize = (24.0 + sin(t*2.0 + id)*6.0) * (50.0 / gl_Position.w) * (0.5 + 0.5 * vF);
             }
         `;
 
         const FS = `
             precision lowp float;
             varying float vR;
-            varying float vActive;
-
+            varying float vF;
             void main() {
                 float d = length(gl_PointCoord - 0.5);
                 if(d > 0.5) discard;
-
-                vec3 cCore = vec3(1.0, 1.0, 0.9);
-                vec3 cEdge = mix(vec3(0.0, 1.0, 0.7), vec3(0.1, 0.4, 1.0), vR);
-                vec3 clr = mix(cEdge, cCore, exp(-vR * 5.0));
-
-                float glow = exp(-d * 6.0) * 6.5 * (0.4 + 0.6 * vActive);
+                vec3 clr = mix(vec3(0.0, 1.0, 0.8), vec3(0.2, 0.5, 1.0), vR);
+                float glow = exp(-d * 6.0) * 7.0 * (0.5 + 0.5 * vF);
                 gl_FragColor = vec4(clr * glow, glow);
             }
         `;
 
-        // Shader setup
-        const compile = (t, s) => {
-            const sh = gl.createShader(t);
-            gl.shaderSource(sh, s);
-            gl.compileShader(sh);
-            return sh;
-        };
+        const sh = (t, s) => { const sdr = gl.createShader(t); gl.shaderSource(sdr, s); gl.compileShader(sdr); return sdr; };
+        const prog = gl.createProgram();
+        gl.attachShader(prog, sh(gl.VERTEX_SHADER, VS));
+        gl.attachShader(prog, sh(gl.FRAGMENT_SHADER, FS));
+        gl.linkProgram(prog);
+        gl.useProgram(prog);
 
-        const program = gl.createProgram();
-        gl.attachShader(program, compile(gl.VERTEX_SHADER, VS));
-        gl.attachShader(program, compile(gl.FRAGMENT_SHADER, FS));
-        gl.linkProgram(program);
-        gl.useProgram(program);
-
-        // Buffer 523 particles
-        const count = 523;
-        const ids = new Float32Array(count);
-        for(let i=0; i<count; i++) ids[i] = i + 1;
-
-        const buffer = gl.createBuffer();
-        gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+        const ids = new Float32Array(523);
+        for(let i=0; i<523; i++) ids[i] = i + 1;
+        const buf = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, buf);
         gl.bufferData(gl.ARRAY_BUFFER, ids, gl.STATIC_DRAW);
 
-        const idLoc = gl.getAttribLocation(program, 'id');
-        const mLoc = gl.getUniformLocation(program, 'uM');
-        const tLoc = gl.getUniformLocation(program, 'uT');
-        const limLoc = gl.getUniformLocation(program, 'uLimit');
+        const idLoc = gl.getAttribLocation(prog, 'id');
+        const mLoc = gl.getUniformLocation(prog, 'm');
+        const tLoc = gl.getUniformLocation(prog, 't');
+        const limLoc = gl.getUniformLocation(prog, 'limit');
 
         gl.enableVertexAttribArray(idLoc);
         gl.vertexAttribPointer(idLoc, 1, gl.FLOAT, false, 0, 0);
 
         let currentLimit = 1;
-        let rotX = 0.45, rotY = 0;
+        let rotX = 0.5, rotY = 0;
 
-        function tick(ts) {
+        function draw(ts) {
             const time = ts * 0.001;
-            const w = window.innerWidth * window.devicePixelRatio;
-            const h = window.innerHeight * window.devicePixelRatio;
+            const w = window.innerWidth * devicePixelRatio, h = window.innerHeight * devicePixelRatio;
+            if(canvas.width !== w) { canvas.width = w; canvas.height = h; gl.viewport(0,0,w,h); }
 
-            if(canvas.width !== w || canvas.height !== h) {
-                canvas.width = w; canvas.height = h;
-                gl.viewport(0, 0, w, h);
-            }
-
-            gl.clearColor(0,0,0,1);
             gl.clear(gl.COLOR_BUFFER_BIT);
             gl.enable(gl.BLEND);
-            gl.blendFunc(gl.ONE, gl.ONE); // High-Energy Additive
+            gl.blendFunc(gl.ONE, gl.ONE);
 
+            // GROWTH ACCELERATION: Fibonacci-style speed
             if(currentLimit < 523) {
-                currentLimit += 0.55;
-                val.innerText = Math.floor(currentLimit);
+                currentLimit += (1.0 + (currentLimit / 100.0)); 
+                if(currentLimit > 523) currentLimit = 523;
+                counter.innerText = Math.floor(currentLimit);
             }
 
-            // Projection Matrix (Custom view)
-            const fov = 1.5, aspect = w / h;
-            const f = 1.0 / Math.tan(fov / 2);
+            const fov = 1.5, aspect = w/h, f = 1.0/Math.tan(fov/2);
             const pM = new Float32Array([f/aspect,0,0,0, 0,f,0,0, 0,0,-1,-1, 0,0,-0.2,0]);
-            
-            const cx = Math.cos(rotX), sx = Math.sin(rotX);
-            const cy = Math.cos(rotY), sy = Math.sin(rotY);
-            const vM = new Float32Array([cy,sx*sy,-cx*sy,0, 0,cx,sx,0, sy,-sx*cy,cx*cy,0, 0,-15,-95,1]);
+            const vM = new Float32Array([Math.cos(rotY), Math.sin(rotX)*Math.sin(rotY), -Math.cos(rotX)*Math.sin(rotY), 0, 0, Math.cos(rotX), Math.sin(rotX), 0, Math.sin(rotY), -Math.sin(rotX)*Math.cos(rotY), Math.cos(rotX)*Math.cos(rotY), 0, 0, -10, -110, 1]);
 
             const res = new Float32Array(16);
             for(let i=0;i<4;i++) for(let j=0;j<4;j++) for(let k=0;k<4;k++) res[i*4+j]+=vM[i*4+k]*pM[k*4+j];
@@ -184,22 +116,10 @@
             gl.uniformMatrix4fv(mLoc, false, res);
             gl.uniform1f(tLoc, time);
             gl.uniform1f(limLoc, currentLimit);
-
-            gl.drawArrays(gl.POINTS, 0, count);
-            requestAnimationFrame(tick);
+            gl.drawArrays(gl.POINTS, 0, 523);
+            requestAnimationFrame(draw);
         }
-        requestAnimationFrame(tick);
-
-        // Precise Touch for iPhone
-        let isDown = false, lx, ly;
-        window.addEventListener('touchstart', e => { isDown = true; lx = e.touches[0].clientX; ly = e.touches[0].clientY; });
-        window.addEventListener('touchmove', e => {
-            if(!isDown) return;
-            rotY += (e.touches[0].clientX - lx) * 0.006;
-            rotX += (e.touches[0].clientY - ly) * 0.006;
-            lx = e.touches[0].clientX; ly = e.touches[0].clientY;
-        });
-        window.addEventListener('touchend', () => isDown = false);
+        requestAnimationFrame(draw);
     </script>
 </body>
 </html>
