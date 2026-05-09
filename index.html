@@ -2,63 +2,150 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>AXIOM // GENESIS</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>AXIOM // P3 HSL CORE</title>
     <style>
-        :root { --bg: #000; --glow: #00ffb4; }
-        body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: var(--bg); overflow: hidden; touch-action: none; }
+        :root { --p3-cyan: color(display-p3 0 1 0.85); }
+        body { margin: 0; background: #000; overflow: hidden; touch-action: none; }
         canvas { display: block; width: 100vw; height: 100vh; }
-        #os { position: fixed; bottom: 40px; left: 0; width: 100%; display: flex; justify-content: center; pointer-events: none; }
-        .data-stream { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--glow); font-size: 10px; letter-spacing: 2px; text-transform: uppercase; opacity: 0.8; }
+        /* Using CSS P3 for the UI overlay to match the engine */
+        #os { 
+            position: fixed; top: 30px; width: 100%; text-align: center; pointer-events: none;
+            color: var(--p3-cyan); font-family: ui-monospace, monospace; 
+            font-size: 10px; letter-spacing: 3px;
+        }
     </style>
 </head>
 <body>
+    <div id="os">P3_WIDE_GAMUT_ACTIVE // <span id="idx">0</span>%</div>
     <canvas id="stage"></canvas>
-    <div id="os"><div class="data-stream">Manifold_Density: <span id="idx">1</span> / 523</div></div>
 
     <script type="module">
-        const c = document.getElementById('stage'), gl = c.getContext('webgl', { antialias: true, preserveDrawingBuffer: true });
-        const idxOut = document.getElementById('idx');
+        const c = document.getElementById('stage'), gl = c.getContext('webgl', { antialias: true });
+        const out = document.getElementById('idx');
 
-        const S = (t, s) => { const r = gl.createShader(t); gl.shaderSource(r, s); gl.compileShader(r); return r; };
-        const P = gl.createProgram();
+        const VS = `
+            precision highp float;
+            attribute float id;
+            uniform mat4 m;
+            uniform float t, l, expT;
+            varying float vHue, vSat, vLum, vAlpha;
 
-        const VS = `attribute float i;uniform mat4 m;uniform float t,l;varying float vR,vO;void main(){float PHI=1.6180339887,TAU=6.2831853071,RHO=14.134725;if(i>l){gl_Position=vec4(0.0);return;}float r=sqrt(i)*4.5,a=i*(TAU/(PHI*PHI)),c=sin(log(r+1.0)*RHO)*0.9,f=a+c+(t*0.1);vR=r/110.0;vO=smoothstep(l-20.0,l,i);vec3 p=vec3(cos(f)*r,sin(t+i*0.1)*1.5*vO,sin(f)*r);gl_Position=m*vec4(p,1.0);gl_PointSize=(28.0+sin(t*2.0+i)*6.0)*(45.0/gl_Position.w);}`;
-        const FS = `precision lowp float;varying float vR,vO;void main(){float d=length(gl_PointCoord-0.5);if(d>0.5)discard;vec3 cl=mix(vec3(0.0,1.0,0.7),vec3(0.2,0.5,1.0),vR);float g=exp(-d*6.0)*7.0*(0.4+0.6*vO);gl_FragColor=vec4(cl*g,g);}`;
+            void main() {
+                float P = 1.3247179572; 
+                float TAU = 6.2831853071;
+                float N = 40000.0; 
 
-        gl.attachShader(P, S(gl.VERTEX_SHADER, VS)); gl.attachShader(P, S(gl.FRAGMENT_SHADER, FS));
-        gl.linkProgram(P); gl.useProgram(P);
+                float prog = (id / N) * 523.0;
+                if(prog > l) { gl_Position = vec4(0.0); return; }
 
-        const d = new Float32Array(523); for(let j=0; j<523; j++) d[j] = j + 1;
+                float x = mod(id * (1.0/P), 1.0);
+                float y = mod(id * (1.0/(P*P)), 1.0);
+                float z = id / N;
+
+                float phi = TAU * x;
+                float cosTheta = 2.0 * y - 1.0;
+                float sinTheta = sqrt(max(0.0, 1.0 - cosTheta * cosTheta));
+                
+                float pressure = smoothstep(450.0, 523.0, l);
+                float baseR = (45.0 + sin(t*40.0+id)*pressure) * pow(z, 0.33);
+                float r = baseR + (expT * expT * 700.0 * (z + 0.02));
+                
+                vec3 pos = vec3(
+                    r * sinTheta * cos(phi + (expT * 1.8)),
+                    r * cosTheta + sin(t * 2.0 + id * 0.1) * (0.2 + pressure),
+                    r * sinTheta * sin(phi + (expT * 1.8))
+                );
+
+                // HSL Logic mapped to Manifold Geometry
+                vHue = 0.45 + (z * 0.2) + (expT * 0.3); // Shift from Cyan to Violet
+                vSat = 0.9 - (pressure * 0.4);         // Desaturate into white-hot core
+                vLum = 0.5 + (pressure * 0.4);         // Increase brightness under pressure
+                vAlpha = smoothstep(l-10.0, l, prog) * (1.0 - smoothstep(1.5, 3.0, expT));
+
+                gl_Position = m * vec4(pos, 1.0);
+                gl_PointSize = (12.0 + sin(t * 4.0 + id) * 6.0) * (90.0 / gl_Position.w);
+            }
+        `;
+
+        const FS = `
+            precision highp float;
+            varying float vHue, vSat, vLum, vAlpha;
+
+            float f(float n, float h, float s, float l) {
+                float k = mod(n + h * 12.0, 12.0);
+                float a = s * min(l, 1.0 - l);
+                return l - a * max(-1.0, min(min(k - 3.0, 9.0 - k), 1.0));
+            }
+
+            void main() {
+                float d = length(gl_PointCoord - 0.5);
+                if(d > 0.5) discard;
+
+                // Real-time HSL to RGB conversion
+                vec3 rgb = vec3(
+                    f(0.0, vHue, vSat, vLum),
+                    f(8.0, vHue, vSat, vLum),
+                    f(4.0, vHue, vSat, vLum)
+                );
+                
+                float glow = exp(-d * 6.0) * 10.0;
+                gl_FragColor = vec4(rgb * glow, vAlpha);
+            }
+        `;
+
+        const sh = (t, s) => { const r = gl.createShader(t); gl.shaderSource(r, s); gl.compileShader(r); return r; };
+        const prog = gl.createProgram();
+        gl.attachShader(prog, sh(gl.VERTEX_SHADER, VS));
+        gl.attachShader(prog, sh(gl.FRAGMENT_SHADER, FS));
+        gl.linkProgram(prog); gl.useProgram(prog);
+
+        const count = 40000;
+        const ids = new Float32Array(count);
+        for(let i=0; i<count; i++) ids[i] = i;
         gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
-        gl.bufferData(gl.ARRAY_BUFFER, d, gl.STATIC_DRAW);
+        gl.bufferData(gl.ARRAY_BUFFER, ids, gl.STATIC_DRAW);
 
-        const iL = gl.getAttribLocation(P, 'i'), mL = gl.getUniformLocation(P, 'm'), tL = gl.getUniformLocation(P, 't'), lL = gl.getUniformLocation(P, 'l');
-        gl.enableVertexAttribArray(iL); gl.vertexAttribPointer(iL, 1, gl.FLOAT, false, 0, 0);
+        const iL = gl.getAttribLocation(prog, 'id'), mL = gl.getUniformLocation(prog, 'm'), 
+              tL = gl.getUniformLocation(prog, 't'), lL = gl.getUniformLocation(prog, 'l'),
+              eL = gl.getUniformLocation(prog, 'expT');
 
-        let lim = 1, rx = 0.5, ry = 0;
-        const tick = (ts) => {
+        gl.enableVertexAttribArray(idL); gl.vertexAttribPointer(idL, 1, gl.FLOAT, false, 0, 0);
+
+        let lim = 1, rx = 0.6, ry = 0, ex = 0;
+        const frame = (ts) => {
             const time = ts * 0.001, w = window.innerWidth * devicePixelRatio, h = window.innerHeight * devicePixelRatio;
             if(c.width !== w) { c.width = w; c.height = h; gl.viewport(0, 0, w, h); }
             
-            gl.clear(gl.COLOR_BUFFER_BIT); gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE);
-            if(lim < 523) { lim += (1.0 + (lim/80.0)); idxOut.innerText = Math.floor(Math.min(lim, 523)); }
+            gl.clearColor(0,0,0,1); gl.clear(gl.COLOR_BUFFER_BIT);
+            gl.enable(gl.BLEND); 
+            // Standard Premultiplied Alpha for P3 depth
+            gl.blendFunc(gl.SRC_ALPHA, gl.ONE); 
 
-            const f = 1.0/Math.tan(1.5/2), as = w/h;
-            const p = [f/as,0,0,0, 0,f,0,0, 0,0,-1,-1, 0,0,-0.2,0];
+            if(lim < 523) { 
+                lim += 1.4; 
+                out.innerText = Math.floor((lim/523)*100); 
+            } else {
+                ex += 0.012;
+                out.innerText = "P3_SINGULARITY_BREACH";
+                out.style.color = "color(display-p3 1 0.2 0.4)";
+            }
+
+            const p = [1.5/(w/h),0,0,0, 0,1.5,0,0, 0,0,-1,-1, 0,0,-0.2,0];
             const cx = Math.cos(rx), sx = Math.sin(rx), cy = Math.cos(ry), sy = Math.sin(ry);
-            const v = [cy,sx*sy,-cx*sy,0, 0,cx,sx,0, sy,-sx*cy,cx*cy,0, 0,-12,-115,1];
+            const v = [cy,sx*sy,-cx*sy,0, 0,cx,sx,0, sy,-sx*cy,cx*cy,0, 0,0,-180,1];
             const r = new Float32Array(16);
             for(let i=0; i<4; i++) for(let j=0; j<4; j++) for(let k=0; k<4; k++) r[i*4+j] += v[i*4+k] * p[k*4+j];
 
-            gl.uniformMatrix4fv(mL, false, r); gl.uniform1f(tL, time); gl.uniform1f(lL, lim);
-            gl.drawArrays(gl.POINTS, 0, 523); requestAnimationFrame(tick);
+            gl.uniformMatrix4fv(mL, false, r); gl.uniform1f(tL, time); gl.uniform1f(lL, lim); gl.uniform1f(eL, ex);
+            gl.drawArrays(gl.POINTS, 0, count);
+            requestAnimationFrame(frame);
         };
-        requestAnimationFrame(tick);
+        requestAnimationFrame(frame);
 
         let dn = false, ox, oy;
         window.onpointerdown = e => { dn = true; ox = e.clientX; oy = e.clientY; };
-        window.onpointermove = e => { if(!dn) return; ry += (e.clientX - ox) * 0.005; rx += (e.clientY - oy) * 0.005; ox = e.clientX; oy = e.clientY; };
+        window.onpointermove = e => { if(!dn) return; ry += (e.clientX - ox) * 0.004; rx += (e.clientY - oy) * 0.004; ox = e.clientX; oy = e.clientY; };
         window.onpointerup = () => dn = false;
     </script>
 </body>
