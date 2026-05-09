@@ -2,124 +2,64 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Axiom // True Sequence 523</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>AXIOM // GENESIS</title>
     <style>
-        body { margin: 0; background: #000; overflow: hidden; font-family: -apple-system, sans-serif; }
+        :root { --bg: #000; --glow: #00ffb4; }
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: var(--bg); overflow: hidden; touch-action: none; }
         canvas { display: block; width: 100vw; height: 100vh; }
-        #ui { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; pointer-events: none; color: #fff; }
-        .stats { margin-top: 15px; font-size: 10px; letter-spacing: 3px; color: rgba(255,255,255,0.4); text-transform: uppercase; }
-        b { color: #0f9; margin-left: 5px; }
+        #os { position: fixed; bottom: 40px; left: 0; width: 100%; display: flex; justify-content: center; pointer-events: none; }
+        .data-stream { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--glow); font-size: 10px; letter-spacing: 2px; text-transform: uppercase; opacity: 0.8; }
     </style>
 </head>
 <body>
-    <div id="ui">
-        <h1 style="font-size: 2rem; letter-spacing: -1px; margin: 0;">Irrational Genesis</h1>
-        <div class="stats">Manifold Index <b id="counter">1</b></div>
-    </div>
     <canvas id="stage"></canvas>
+    <div id="os"><div class="data-stream">Manifold_Density: <span id="idx">1</span> / 523</div></div>
 
     <script type="module">
-        const canvas = document.getElementById('stage');
-        const gl = canvas.getContext('webgl', { antialias: true });
-        const counter = document.getElementById('counter');
+        const c = document.getElementById('stage'), gl = c.getContext('webgl', { antialias: true, preserveDrawingBuffer: true });
+        const idxOut = document.getElementById('idx');
 
-        const VS = `
-            attribute float id;
-            uniform mat4 m;
-            uniform float t;
-            uniform float limit;
-            varying float vR;
-            varying float vF;
+        const S = (t, s) => { const r = gl.createShader(t); gl.shaderSource(r, s); gl.compileShader(r); return r; };
+        const P = gl.createProgram();
 
-            void main() {
-                float PHI = 1.6180339887;
-                float TAU = 6.2831853071;
-                float RHO = 14.134725;
+        const VS = `attribute float i;uniform mat4 m;uniform float t,l;varying float vR,vO;void main(){float PHI=1.6180339887,TAU=6.2831853071,RHO=14.134725;if(i>l){gl_Position=vec4(0.0);return;}float r=sqrt(i)*4.5,a=i*(TAU/(PHI*PHI)),c=sin(log(r+1.0)*RHO)*0.9,f=a+c+(t*0.1);vR=r/110.0;vO=smoothstep(l-20.0,l,i);vec3 p=vec3(cos(f)*r,sin(t+i*0.1)*1.5*vO,sin(f)*r);gl_Position=m*vec4(p,1.0);gl_PointSize=(28.0+sin(t*2.0+i)*6.0)*(45.0/gl_Position.w);}`;
+        const FS = `precision lowp float;varying float vR,vO;void main(){float d=length(gl_PointCoord-0.5);if(d>0.5)discard;vec3 cl=mix(vec3(0.0,1.0,0.7),vec3(0.2,0.5,1.0),vR);float g=exp(-d*6.0)*7.0*(0.4+0.6*vO);gl_FragColor=vec4(cl*g,g);}`;
 
-                if(id > limit) { gl_Position = vec4(0.0); return; }
+        gl.attachShader(P, S(gl.VERTEX_SHADER, VS)); gl.attachShader(P, S(gl.FRAGMENT_SHADER, FS));
+        gl.linkProgram(P); gl.useProgram(P);
 
-                float r = sqrt(id) * 4.5;
-                float theta = id * (TAU / (PHI * PHI));
-                float curl = sin(log(r + 1.0) * RHO) * 0.95;
-                float angle = theta + curl + (t * 0.1);
+        const d = new Float32Array(523); for(let j=0; j<523; j++) d[j] = j + 1;
+        gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
+        gl.bufferData(gl.ARRAY_BUFFER, d, gl.STATIC_DRAW);
 
-                vR = r / 110.0;
-                vF = smoothstep(limit - 10.0, limit, id);
+        const iL = gl.getAttribLocation(P, 'i'), mL = gl.getUniformLocation(P, 'm'), tL = gl.getUniformLocation(P, 't'), lL = gl.getUniformLocation(P, 'l');
+        gl.enableVertexAttribArray(iL); gl.vertexAttribPointer(iL, 1, gl.FLOAT, false, 0, 0);
 
-                vec3 pos = vec3(cos(angle) * r, sin(t + id * 0.1) * 1.5 * vF, sin(angle) * r);
-                gl_Position = m * vec4(pos, 1.0);
-                gl_PointSize = (24.0 + sin(t*2.0 + id)*6.0) * (50.0 / gl_Position.w) * (0.5 + 0.5 * vF);
-            }
-        `;
+        let lim = 1, rx = 0.5, ry = 0;
+        const tick = (ts) => {
+            const time = ts * 0.001, w = window.innerWidth * devicePixelRatio, h = window.innerHeight * devicePixelRatio;
+            if(c.width !== w) { c.width = w; c.height = h; gl.viewport(0, 0, w, h); }
+            
+            gl.clear(gl.COLOR_BUFFER_BIT); gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE);
+            if(lim < 523) { lim += (1.0 + (lim/80.0)); idxOut.innerText = Math.floor(Math.min(lim, 523)); }
 
-        const FS = `
-            precision lowp float;
-            varying float vR;
-            varying float vF;
-            void main() {
-                float d = length(gl_PointCoord - 0.5);
-                if(d > 0.5) discard;
-                vec3 clr = mix(vec3(0.0, 1.0, 0.8), vec3(0.2, 0.5, 1.0), vR);
-                float glow = exp(-d * 6.0) * 7.0 * (0.5 + 0.5 * vF);
-                gl_FragColor = vec4(clr * glow, glow);
-            }
-        `;
+            const f = 1.0/Math.tan(1.5/2), as = w/h;
+            const p = [f/as,0,0,0, 0,f,0,0, 0,0,-1,-1, 0,0,-0.2,0];
+            const cx = Math.cos(rx), sx = Math.sin(rx), cy = Math.cos(ry), sy = Math.sin(ry);
+            const v = [cy,sx*sy,-cx*sy,0, 0,cx,sx,0, sy,-sx*cy,cx*cy,0, 0,-12,-115,1];
+            const r = new Float32Array(16);
+            for(let i=0; i<4; i++) for(let j=0; j<4; j++) for(let k=0; k<4; k++) r[i*4+j] += v[i*4+k] * p[k*4+j];
 
-        const sh = (t, s) => { const sdr = gl.createShader(t); gl.shaderSource(sdr, s); gl.compileShader(sdr); return sdr; };
-        const prog = gl.createProgram();
-        gl.attachShader(prog, sh(gl.VERTEX_SHADER, VS));
-        gl.attachShader(prog, sh(gl.FRAGMENT_SHADER, FS));
-        gl.linkProgram(prog);
-        gl.useProgram(prog);
+            gl.uniformMatrix4fv(mL, false, r); gl.uniform1f(tL, time); gl.uniform1f(lL, lim);
+            gl.drawArrays(gl.POINTS, 0, 523); requestAnimationFrame(tick);
+        };
+        requestAnimationFrame(tick);
 
-        const ids = new Float32Array(523);
-        for(let i=0; i<523; i++) ids[i] = i + 1;
-        const buf = gl.createBuffer();
-        gl.bindBuffer(gl.ARRAY_BUFFER, buf);
-        gl.bufferData(gl.ARRAY_BUFFER, ids, gl.STATIC_DRAW);
-
-        const idLoc = gl.getAttribLocation(prog, 'id');
-        const mLoc = gl.getUniformLocation(prog, 'm');
-        const tLoc = gl.getUniformLocation(prog, 't');
-        const limLoc = gl.getUniformLocation(prog, 'limit');
-
-        gl.enableVertexAttribArray(idLoc);
-        gl.vertexAttribPointer(idLoc, 1, gl.FLOAT, false, 0, 0);
-
-        let currentLimit = 1;
-        let rotX = 0.5, rotY = 0;
-
-        function draw(ts) {
-            const time = ts * 0.001;
-            const w = window.innerWidth * devicePixelRatio, h = window.innerHeight * devicePixelRatio;
-            if(canvas.width !== w) { canvas.width = w; canvas.height = h; gl.viewport(0,0,w,h); }
-
-            gl.clear(gl.COLOR_BUFFER_BIT);
-            gl.enable(gl.BLEND);
-            gl.blendFunc(gl.ONE, gl.ONE);
-
-            // GROWTH ACCELERATION: Fibonacci-style speed
-            if(currentLimit < 523) {
-                currentLimit += (1.0 + (currentLimit / 100.0)); 
-                if(currentLimit > 523) currentLimit = 523;
-                counter.innerText = Math.floor(currentLimit);
-            }
-
-            const fov = 1.5, aspect = w/h, f = 1.0/Math.tan(fov/2);
-            const pM = new Float32Array([f/aspect,0,0,0, 0,f,0,0, 0,0,-1,-1, 0,0,-0.2,0]);
-            const vM = new Float32Array([Math.cos(rotY), Math.sin(rotX)*Math.sin(rotY), -Math.cos(rotX)*Math.sin(rotY), 0, 0, Math.cos(rotX), Math.sin(rotX), 0, Math.sin(rotY), -Math.sin(rotX)*Math.cos(rotY), Math.cos(rotX)*Math.cos(rotY), 0, 0, -10, -110, 1]);
-
-            const res = new Float32Array(16);
-            for(let i=0;i<4;i++) for(let j=0;j<4;j++) for(let k=0;k<4;k++) res[i*4+j]+=vM[i*4+k]*pM[k*4+j];
-
-            gl.uniformMatrix4fv(mLoc, false, res);
-            gl.uniform1f(tLoc, time);
-            gl.uniform1f(limLoc, currentLimit);
-            gl.drawArrays(gl.POINTS, 0, 523);
-            requestAnimationFrame(draw);
-        }
-        requestAnimationFrame(draw);
+        let dn = false, ox, oy;
+        window.onpointerdown = e => { dn = true; ox = e.clientX; oy = e.clientY; };
+        window.onpointermove = e => { if(!dn) return; ry += (e.clientX - ox) * 0.005; rx += (e.clientY - oy) * 0.005; ox = e.clientX; oy = e.clientY; };
+        window.onpointerup = () => dn = false;
     </script>
 </body>
 </html>
