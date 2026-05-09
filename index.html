@@ -3,63 +3,22 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Axiom // Irrational Genesis</title>
+    <title>Axiom // Dense Genesis</title>
     <style>
-        body {
-            margin: 0;
-            background: #000;
-            overflow: hidden;
-            font-family: -apple-system, "SF Pro Display", "Helvetica Neue", sans-serif;
-            color: #fff;
-            user-select: none;
-            touch-action: none;
-        }
-        canvas {
-            display: block;
-            width: 100vw;
-            height: 100vh;
-        }
-        #ui {
-            position: fixed;
-            inset: 0;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            pointer-events: none;
-            z-index: 10;
-        }
-        .content {
-            text-align: center;
-            text-shadow: 0 0 30px rgba(0, 255, 180, 0.6);
-        }
-        h1 {
-            font-size: 2.5rem;
-            font-weight: 700;
-            letter-spacing: -2px;
-            margin: 0;
-            opacity: 0.9;
-        }
-        .metric {
-            margin-top: 10px;
-            font-size: 0.7rem;
-            letter-spacing: 3px;
-            color: rgba(255, 255, 255, 0.4);
-            font-weight: 600;
-            text-transform: uppercase;
-        }
-        b {
-            color: #0f9;
-            margin-left: 10px;
-            font-variant-numeric: tabular-nums;
-        }
+        body { margin: 0; background: #000; overflow: hidden; font-family: -apple-system, sans-serif; touch-action: none; }
+        canvas { display: block; width: 100vw; height: 100vh; }
+        #ui { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; pointer-events: none; z-index: 10; }
+        .content { text-align: center; text-shadow: 0 0 30px rgba(0, 255, 180, 0.6); color: #fff; }
+        h1 { font-size: 2rem; font-weight: 700; letter-spacing: -1px; margin: 0; }
+        .metric { margin-top: 8px; font-size: 0.7rem; letter-spacing: 2px; color: rgba(255, 255, 255, 0.4); }
+        b { color: #0f9; margin-left: 8px; }
     </style>
 </head>
 <body>
-
     <div id="ui">
         <div class="content">
-            <h1>Unity Genesis</h1>
-            <div class="metric">Sequence Index <b id="idx">1</b></div>
+            <h1>Cumulative Genesis</h1>
+            <div class="metric">Non-Trivial Resonance <b id="idx">1</b></div>
         </div>
     </div>
     <canvas id="glCanvas"></canvas>
@@ -70,78 +29,69 @@
         uniform float t;
         uniform float limit;
         varying float vR;
-        varying float vA;
+        varying float vAlpha;
 
         void main() {
-            float PHI = 1.618033988749895;
-            float TAU = 6.283185307179586;
+            float PHI = 1.6180339887;
+            float TAU = 6.2831853071;
             float RHO = 14.134725;
 
+            // This ensures particles stay rendered once born
             if(id > limit) {
                 gl_Position = vec4(0.0, 0.0, 0.0, 0.0);
                 return;
             }
 
-            // Growth physics
-            float active = smoothstep(limit - 15.0, limit, id);
-            float r = sqrt(id) * 4.5;
+            // Radial distance grows as a function of ID, not time
+            float r = sqrt(id) * 4.0;
             float theta = id * (TAU / (PHI * PHI));
             
-            // Riemann Frequency Warp
-            float riemann = sin(log(r + 1.0) * RHO) * 0.8;
-            float finalA = theta + riemann + (t * 0.15);
+            // Apply Riemann Frequency to the spiral phase
+            float riemann = sin(log(r + 1.0) * RHO) * 0.85;
+            float finalA = theta + riemann + (t * 0.1);
 
-            vec3 pos = vec3(
-                cos(finalA) * r,
-                sin(t * 0.6 + id * 0.1) * 1.5 * active,
-                sin(finalA) * r
-            );
+            // Vertical oscillation based on frequency
+            float y = sin(t * 0.5 + id * 0.2) * (1.5 * (1.0 - (r/90.0)));
 
-            vR = r / 90.0;
-            vA = active;
+            vec3 pos = vec3(cos(finalA) * r, y, sin(finalA) * r);
+
+            vR = r / 95.0;
+            // Newer particles are brighter (vAlpha)
+            vAlpha = smoothstep(limit - 20.0, limit, id) * 0.5 + 0.5;
             
             gl_Position = m * vec4(pos, 1.0);
-            gl_PointSize = (30.0 + sin(t * 2.0 + id) * 10.0) * (45.0 / gl_Position.w) * active;
+            gl_PointSize = (22.0 + sin(t + id) * 5.0) * (50.0 / gl_Position.w);
         }
     </script>
 
     <script id="fs" type="x-shader/x-fragment">
         precision lowp float;
         varying float vR;
-        varying float vA;
+        varying float vAlpha;
 
         void main() {
             float d = length(gl_PointCoord - 0.5);
             if(d > 0.5) discard;
 
-            vec3 core = vec3(1.0, 1.0, 0.9);
-            vec3 edge = mix(vec3(0.0, 1.0, 0.7), vec3(0.1, 0.4, 1.0), vR);
-            vec3 clr = mix(edge, core, exp(-vR * 3.0));
+            vec3 core = vec3(1.0, 1.0, 0.95);
+            vec3 edge = mix(vec3(0.0, 1.0, 0.8), vec3(0.1, 0.4, 1.0), vR);
+            vec3 clr = mix(edge, core, exp(-vR * 4.0));
 
-            float glow = exp(-d * 6.0) * 7.0 * vA;
-            gl_FragColor = vec4(clr * glow, glow * 0.8);
+            // Intensive additive glow
+            float glow = exp(-d * 5.0) * 6.0 * vAlpha;
+            gl_FragColor = vec4(clr * glow, glow);
         }
     </script>
 
     <script>
         const canvas = document.getElementById('glCanvas');
-        const gl = canvas.getContext('webgl');
+        const gl = canvas.getContext('webgl', { antialias: true, alpha: false });
         const idxDisplay = document.getElementById('idx');
 
-        if (!gl) {
-            alert("WebGL not supported");
-        }
-
-        function createShader(gl, type, source) {
-            const shader = gl.createShader(type);
-            gl.shaderSource(shader, source);
-            gl.compileShader(shader);
-            return shader;
-        }
-
         const program = gl.createProgram();
-        gl.attachShader(program, createShader(gl, gl.VERTEX_SHADER, document.getElementById('vs').text));
-        gl.attachShader(program, createShader(gl, gl.FRAGMENT_SHADER, document.getElementById('fs').text));
+        const sh = (t, s) => { const sdr = gl.createShader(t); gl.shaderSource(sdr, s); gl.compileShader(sdr); return sdr; };
+        gl.attachShader(program, sh(gl.VERTEX_SHADER, document.getElementById('vs').text));
+        gl.attachShader(program, sh(gl.FRAGMENT_SHADER, document.getElementById('fs').text));
         gl.linkProgram(program);
         gl.useProgram(program);
 
@@ -162,7 +112,7 @@
         gl.vertexAttribPointer(idLoc, 1, gl.FLOAT, false, 0, 0);
 
         let currentLimit = 1;
-        let rotX = 0.3, rotY = 0;
+        let rotX = 0.4, rotY = 0;
 
         function render(now) {
             const time = now * 0.001;
@@ -174,23 +124,23 @@
                 gl.viewport(0, 0, w, h);
             }
 
+            gl.clearColor(0, 0, 0, 1);
             gl.clear(gl.COLOR_BUFFER_BIT);
             gl.enable(gl.BLEND);
-            gl.blendFunc(gl.ONE, gl.ONE);
+            gl.blendFunc(gl.ONE, gl.ONE); // Pure Additive Light
 
             if (currentLimit < 523) {
-                currentLimit += 0.8;
+                currentLimit += 0.6;
                 idxDisplay.innerText = Math.floor(currentLimit);
             }
 
-            // Matrix Math
             const fov = 1.5, aspect = w / h;
             const f = 1.0 / Math.tan(fov / 2);
             const pM = new Float32Array([f/aspect,0,0,0, 0,f,0,0, 0,0,-1,-1, 0,0,-0.2,0]);
             
             const cx = Math.cos(rotX), sx = Math.sin(rotX);
             const cy = Math.cos(rotY), sy = Math.sin(rotY);
-            const vM = new Float32Array([cy,sx*sy,-cx*sy,0, 0,cx,sx,0, sy,-sx*cy,cx*cy,0, 0,-15,-95,1]);
+            const vM = new Float32Array([cy,sx*sy,-cx*sy,0, 0,cx,sx,0, sy,-sx*cy,cx*cy,0, 0,-10,-90,1]);
 
             const res = new Float32Array(16);
             for(let i=0;i<4;i++) for(let j=0;j<4;j++) for(let k=0;k<4;k++) res[i*4+j]+=vM[i*4+k]*pM[k*4+j];
@@ -202,22 +152,16 @@
             gl.drawArrays(gl.POINTS, 0, count);
             requestAnimationFrame(render);
         }
-
         requestAnimationFrame(render);
 
-        // Touch Interaction
+        // Interaction
         let isDown = false, lx, ly;
-        window.addEventListener('touchstart', e => {
-            isDown = true;
-            lx = e.touches[0].clientX;
-            ly = e.touches[0].clientY;
-        });
+        window.addEventListener('touchstart', e => { isDown = true; lx = e.touches[0].clientX; ly = e.touches[0].clientY; });
         window.addEventListener('touchmove', e => {
             if (!isDown) return;
             rotY += (e.touches[0].clientX - lx) * 0.005;
             rotX += (e.touches[0].clientY - ly) * 0.005;
-            lx = e.touches[0].clientX;
-            ly = e.touches[0].clientY;
+            lx = e.touches[0].clientX; ly = e.touches[0].clientY;
         });
         window.addEventListener('touchend', () => isDown = false);
     </script>
